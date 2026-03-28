@@ -1,7 +1,13 @@
+import queue
+import threading
 from core.listener import Listener
 from core.speaker import Speaker
-from datetime import datetime
 from core.memory import Memory
+from datetime import datetime
+import time
+
+# kolejka komunikatów z mikrofonu
+text_queue = queue.Queue()
 
 listener = Listener()
 speaker = Speaker()
@@ -9,10 +15,24 @@ memory = Memory()
 
 speaker.speak("Lucy uruchomiona. Słucham.")
 
-while True:
-    text = listener.listen()
-    print(f"Ty: {text}")
+# wątek nasłuchu
+def listen_thread():
+    while True:
+        text = listener.listen()
+        if text:
+            text_queue.put(text)
 
+threading.Thread(target=listen_thread, daemon=True).start()
+
+# główna pętla reagowania
+while True:
+    try:
+        text = text_queue.get(timeout=0.5)  # nieblokujący get
+    except queue.Empty:
+        continue
+
+    print(f"Ty: {text}")
+    
     text_lower = text.lower()
 
     if "koniec" in text_lower:
@@ -25,9 +45,6 @@ while True:
     elif "godzina" in text_lower:
         now = datetime.now().strftime("%H:%M")
         speaker.speak(f"Jest {now}")
-
-    elif text_lower.strip() == "":
-        continue
 
     elif "mam na imię" in text_lower:
         name = text_lower.replace("mam na imię", "").strip()

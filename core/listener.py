@@ -1,49 +1,54 @@
 import sounddevice as sd
 import numpy as np
 import whisper
-import queue
 
 class Listener:
     def __init__(self):
-        print("🔄 Ładowanie modelu Whisper...")
-        self.model = whisper.load_model("tiny")  # CPU
+        print("🔄 Ładowanie Whisper...")
+        self.model = whisper.load_model("tiny")
         print("✅ Whisper gotowy")
 
         self.samplerate = 16000
-        self.blocksize = 2048
-        self.q_audio = queue.Queue()
-
-    def _callback(self, indata, frames, time, status):
-        if status:
-            print(status)
-        self.q_audio.put(indata.copy())
+        self.threshold = 0.01
+        self.silence_limit = 1.0
 
     def listen(self):
         print("🎤 Lucy słucha...")
 
-        with sd.InputStream(
-            samplerate=self.samplerate,
-            blocksize=self.blocksize,
-            channels=1,
-            dtype='float32',
-            callback=self._callback
-        ):
-            buffer = np.zeros((0,), dtype=np.float32)
+        recording = []
+        silence_time = 0
+        is_recording = False
+
+        def callback(indata, frames, time, status):
+            nonlocal silence_time, is_recording
+
+            volume = np.linalg.norm(indata) / len(indata)
+
+            if volume > self.threshold:
+                is_recording = True
+                recording.append(indata.copy())
+                silence_time = 0
+            elif is_recording:
+                recording.append(indata.copy())
+                silence_time += frames / self.samplerate
+
+        # 🔥 stream tylko na jedną wypowiedź
+        with sd.InputStream(samplerate=self.samplerate,
+                            channels=1,
+                            dtype='float32',
+                            callback=callback):
 
             while True:
-                data = self.q_audio.get()
-                buffer = np.concatenate([buffer, data.flatten()])
+                if is_recording and silence_time > self.silence_limit:
+                    break
 
-                # co ~1 sekunda analizujemy
-                if len(buffer) > self.samplerate:
-                    result = self.model.transcribe(
-                        buffer,
-                        language="pl",
-                        fp16=False
-                    )
+        if len(recording) == 0:
+            return ""
 
-                    text = result.get("text", "").strip()
-                    buffer = np.zeros((0,), dtype=np.float32)
+        audio = np.concatenate(recording, axis=0).flatten()
 
-                    if text:
-                        return text
+        print("🧠 Przetwarzam...")
+        result = self.model.transcribe(audio, language="pl", fp16=False)
+        text = result.get("text", "").strip()
+
+        return text
