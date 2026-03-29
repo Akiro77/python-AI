@@ -1,24 +1,27 @@
+import os
 import queue
 import threading
 from core.listener import Listener
 from datetime import datetime
 import time
 from core.speaker import Speaker
-speaker = Speaker()
 from core.memory import Memory
-
-# -----------------------------
-# Kolejka komunikatów
-# -----------------------------
-text_queue = queue.Queue()
-is_speaking = False
 
 # -----------------------------
 # Inicjalizacja
 # -----------------------------
-listener = Listener()
 speaker = Speaker()
-memory = Memory()
+listener = Listener()
+memory = Memory()  # out-of-the-box: automatycznie zapisuje w /memory/memory.json
+is_speaking = False
+text_queue = queue.Queue()
+
+# Sprawdzenie czy Lucy już zna imię
+name = memory.get("name")
+if name:
+    print(f"Memory loaded: name = {name}")
+else:
+    print("Memory loaded: brak imienia")
 
 # -----------------------------
 # Funkcje pomocnicze
@@ -86,10 +89,10 @@ while True:
 
     elif "mam na imię" in text_lower:
         name = text_lower.replace("mam na imię", "").strip()
-        memory.set("name", name)
+        memory.set("name", name)  # zapis do pamięci trwałej w /memory/memory.json
         safe_speak(f"Miło Cię poznać {name}")
 
-    elif "moje imię to" in text_lower:
+    elif "moje imię to" in text_lower or "jak mam na imię" in text_lower:
         name = memory.get("name")
         if name:
             safe_speak(f"Masz na imię {name}")
