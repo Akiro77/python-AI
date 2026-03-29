@@ -1,17 +1,16 @@
-import pyttsx3
+# speaker.py
+import tempfile
+import os
+import subprocess
+import platform
 
 class Speaker:
     def __init__(self):
-        self.engine = pyttsx3.init('sapi5')
-        self.engine.setProperty('rate', 170)
-
-        voices = self.engine.getProperty('voices')
-        for v in voices:
-            if "pl" in v.id.lower():
-                self.engine.setProperty('voice', v.id)
-                break
+        if platform.system() != "Windows":
+            raise Exception("Ten speaker działa tylko w Windows")
+        import win32com.client
+        self.speaker = win32com.client.Dispatch("SAPI.SpVoice")
 
     def speak(self, text):
         print(f"Lucy: {text}")
-        self.engine.say(text)
-        self.engine.runAndWait()
+        self.speaker.Speak(text)
