@@ -6,13 +6,17 @@ from datetime import datetime
 import time
 from core.speaker import Speaker
 from core.memory import Memory
+from core.monitor_loop import start_monitor
+
+monitor_thread = threading.Thread(target=start_monitor, daemon=True)
+monitor_thread.start()
 
 # -----------------------------
 # Inicjalizacja
 # -----------------------------
 speaker = Speaker()
 listener = Listener()
-memory = Memory()  # out-of-the-box: automatycznie zapisuje w /memory/memory.json
+memory = Memory()  # out-of-the-box: automatycznie zapisuje w /data/memory.json
 is_speaking = False
 text_queue = queue.Queue()
 
@@ -78,10 +82,12 @@ while True:
     # -------------------------
     if "koniec" in text_lower:
         safe_speak("Wyłączam się. Do zobaczenia.")
+        from core.logger import log_command
         break
 
     elif "cześć" in text_lower:
         safe_speak("Cześć. Jak mogę pomóc?")
+        from core.logger import log_command
 
     elif any(word in text_lower for word in ["godzina", "godzin", "dzina", "zina"]):
         now = datetime.now().strftime("%H:%M")
@@ -91,13 +97,16 @@ while True:
         name = text_lower.replace("mam na imię", "").strip()
         memory.set("name", name)  # zapis do pamięci trwałej w /memory/memory.json
         safe_speak(f"Miło Cię poznać {name}")
+        from core.logger import log_command
 
     elif "moje imię to" in text_lower or "jak mam na imię" in text_lower:
         name = memory.get("name")
         if name:
             safe_speak(f"Masz na imię {name}")
+            from core.logger import log_command
         else:
             safe_speak("Jeszcze mi nie powiedziałeś jak masz na imię")
-
+            from core.logger import log_command
     else:
         safe_speak("Nie rozumiem jeszcze, ale się uczę.")
+        from core.logger import log_command
