@@ -1,4 +1,6 @@
 def classify(value, warning, critical):
+    if value is None:
+        return "UNKNOWN"
     if value >= critical:
         return "CRITICAL"
     elif value >= warning:
@@ -8,7 +10,15 @@ def classify(value, warning, critical):
 
 def classify_system(stats, config):
     return {
-        "cpu_status": classify(stats["cpu"], config.CPU_WARNING, config.CPU_CRITICAL),
-        "ram_status": classify(stats["ram"], config.RAM_WARNING, config.RAM_CRITICAL),
-        "disk_status": classify(stats["disk"], config.DISK_WARNING, config.DISK_CRITICAL),
+        "cpu_status": classify(stats.get("cpu_temp"),
+                               config.CPU_TEMP_WARNING,
+                               config.CPU_TEMP_CRITICAL),
+
+        "gpu_status": classify(stats.get("gpu_temp"),
+                               config.GPU_TEMP_WARNING,
+                               config.GPU_TEMP_CRITICAL),
+
+        "ram_status": classify(stats.get("ram_usage"),
+                               config.RAM_WARNING,
+                               config.RAM_CRITICAL)
     }

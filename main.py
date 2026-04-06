@@ -7,7 +7,17 @@ import time
 from core.speaker import Speaker
 from core.memory import Memory
 from core.monitor_loop import start_monitor
+from core.system_monitor import get_system_stats
+from core.logger import log_command
+import multiprocessing
+from core.system_plot import start_live_plot
+import multiprocessing
 
+plot_process = None
+
+# -----------------------------
+# Start monitoringu w tle
+# -----------------------------
 monitor_thread = threading.Thread(target=start_monitor, daemon=True)
 monitor_thread.start()
 
@@ -16,11 +26,11 @@ monitor_thread.start()
 # -----------------------------
 speaker = Speaker()
 listener = Listener()
-memory = Memory()  # out-of-the-box: automatycznie zapisuje w /data/memory.json
+memory = Memory()
 is_speaking = False
 text_queue = queue.Queue()
 
-# Sprawdzenie czy Lucy już zna imię
+# Sprawdzenie pamięci
 name = memory.get("name")
 if name:
     print(f"Memory loaded: name = {name}")
@@ -39,6 +49,11 @@ def safe_speak(text):
 def clean_text(text):
     text = text.replace("<|pl|>", "")
     return text.strip().lower()
+
+def open_plot():
+    p = multiprocessing.get_context('spawn').Process(target=start_live_plot)
+    p.start()
+    return p
 
 # -----------------------------
 # Wątek nasłuchu
@@ -81,32 +96,68 @@ while True:
     # Komendy
     # -------------------------
     if "koniec" in text_lower:
-        safe_speak("Wyłączam się. Do zobaczenia.")
-        from core.logger import log_command
+        response = "Wyłączam się. Do zobaczenia."
+        safe_speak(response)
+        log_command(text, response)
         break
 
+    elif "pokaż system" in text_lower:
+        stats = get_system_stats()
+
+        response = (
+            f"CPU {stats['cpu_usage']} procent, {stats['cpu_temp']} stopni. "
+            f"GPU {stats['gpu_usage']} procent, {stats['gpu_temp']} stopni. "
+            f"RAM {stats['ram_usage']} procent."
+        )
+
+        safe_speak(response)
+        log_command(text, response)
+
+    elif "wykres" in text_lower or "monitor wykres" in text_lower:
+        safe_speak("Otwieram wykresy systemu")
+        if plot_process is None or not plot_process.is_alive():
+            plot_process = start_live_plot()
+
+    elif "zamknij wykres" in text_lower:
+        safe_speak("Zamykam wykresy")
+    if plot_process and plot_process.is_alive():
+        plot_process.terminate()
+        plot_process = None
+
+        for proc in multiprocessing.active_children():
+            proc.terminate()
+
     elif "cześć" in text_lower:
-        safe_speak("Cześć. Jak mogę pomóc?")
-        from core.logger import log_command
+        response = "Cześć. Jak mogę pomóc?"
+        safe_speak(response)
+        log_command(text, response)
 
     elif any(word in text_lower for word in ["godzina", "godzin", "dzina", "zina"]):
         now = datetime.now().strftime("%H:%M")
-        safe_speak(f"Jest {now}")
+        response = f"Jest {now}"
+        safe_speak(response)
+        log_command(text, response)
 
     elif "mam na imię" in text_lower:
         name = text_lower.replace("mam na imię", "").strip()
-        memory.set("name", name)  # zapis do pamięci trwałej w /memory/memory.json
-        safe_speak(f"Miło Cię poznać {name}")
-        from core.logger import log_command
+        memory.set("name", name)
+
+        response = f"Miło Cię poznać {name}"
+        safe_speak(response)
+        log_command(text, response)
 
     elif "moje imię to" in text_lower or "jak mam na imię" in text_lower:
         name = memory.get("name")
+
         if name:
-            safe_speak(f"Masz na imię {name}")
-            from core.logger import log_command
+            response = f"Masz na imię {name}"
         else:
-            safe_speak("Jeszcze mi nie powiedziałeś jak masz na imię")
-            from core.logger import log_command
+            response = "Jeszcze mi nie powiedziałeś jak masz na imię"
+
+        safe_speak(response)
+        log_command(text, response)
+
     else:
-        safe_speak("Nie rozumiem jeszcze, ale się uczę.")
-        from core.logger import log_command
+        response = "Nie rozumiem jeszcze, ale się uczę."
+        safe_speak(response)
+        log_command(text, response)
